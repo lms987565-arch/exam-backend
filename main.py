@@ -34,7 +34,7 @@ app.add_middleware(
         "http://localhost:5500",
         "http://127.0.0.1:5500",
         "http://localhost:8080",
-        "*"   # Remove this in production
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -45,7 +45,7 @@ app.add_middleware(
 app.include_router(exam.router,   prefix="/api/exam",  tags=["Exam"])
 app.include_router(staff.router,  prefix="/api/staff", tags=["Staff"])
 
-# ✅ NEW ROUTER
+# ✅ DASHBOARD ROUTER
 app.include_router(dashboard_router)
 
 
@@ -68,7 +68,6 @@ def health():
 
 @app.get("/api/students")
 async def get_all_students(limit: int = 100):
-    """Get all students"""
     try:
         students = await infinityfree_client.get_all_students(limit)
         return {"success": True, "data": students}
@@ -78,7 +77,6 @@ async def get_all_students(limit: int = 100):
 
 @app.get("/api/exams")
 async def get_all_exams():
-    """Get all exams"""
     try:
         exams = await infinityfree_client.get_all_exams()
         return {"success": True, "data": exams}
@@ -88,7 +86,6 @@ async def get_all_exams():
 
 @app.get("/api/applications")
 async def get_all_applications(limit: int = 100):
-    """Get all applications"""
     try:
         applications = await infinityfree_client.get_all_applications(limit)
         return {"success": True, "data": applications}
@@ -98,7 +95,6 @@ async def get_all_applications(limit: int = 100):
 
 @app.get("/api/hall_tickets/all")
 async def get_all_hall_tickets(limit: int = 100):
-    """Get all hall tickets"""
     try:
         exams = await infinityfree_client.get_all_exams()
         all_tickets = []
@@ -112,7 +108,6 @@ async def get_all_hall_tickets(limit: int = 100):
 
 @app.get("/api/exam_schedule/all")
 async def get_all_schedule(limit: int = 200):
-    """Get all exam schedules"""
     try:
         exams = await infinityfree_client.get_all_exams()
         all_schedule = []
@@ -126,7 +121,6 @@ async def get_all_schedule(limit: int = 200):
 
 @app.get("/api/documents/all")
 async def get_all_documents(limit: int = 200):
-    """Get all documents"""
     try:
         students = await infinityfree_client.get_all_students(50)
         all_docs = []
@@ -140,11 +134,21 @@ async def get_all_documents(limit: int = 200):
 
 @app.get("/api/tokens/all")
 async def get_all_tokens(limit: int = 100):
-    """Get all tokens"""
     try:
         exams = await infinityfree_client.get_all_exams()
         all_tokens = []
-        # Tokens endpoint may need implementation
         return {"success": True, "data": all_tokens}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ✅ ✅ ✅ FIXED MISSING ENDPOINT (IMPORTANT)
+
+@app.get("/api/dashboard/stats")
+async def get_dashboard_stats():
+    """Get dashboard statistics"""
+    try:
+        stats = await infinityfree_client.get_dashboard_stats()
+        return {"success": True, "data": stats}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
