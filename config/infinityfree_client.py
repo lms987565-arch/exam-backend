@@ -15,10 +15,6 @@ class InfinityFreeClient:
     def __init__(self):
         self.base_url = BASE_URL
         self.api_key  = API_KEY
-        # NOTE: InfinityFree free hosting silently drops custom HTTP headers
-        # (X-API-Key, Authorization, etc.).  We pass the key as a query
-        # parameter instead.  The PHP file accepts ?api_key= first, then
-        # falls back to the header for environments that do pass it through.
 
     def _build_url(self, endpoint: str, params: Dict = None) -> str:
         """Build full URL with endpoint + api_key + optional extra params."""
@@ -29,17 +25,15 @@ class InfinityFreeClient:
                     url += f"&{key}={value}"
         return url
 
-    # ==================== CORE REQUEST HELPERS ====================
-
     async def _get(self, endpoint: str, params: Dict = None):
         url = self._build_url(endpoint, params)
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(url)
                 print(f"📡 GET {endpoint} → {response.status_code}")
-                return self._parse(response, endpoint)
+                return await self._parse(response, endpoint)
             except httpx.TimeoutException:
-                print(f"⏱️  Timeout on GET {endpoint}")
+                print(f"⏱️ Timeout on GET {endpoint}")
                 return None
             except Exception as e:
                 print(f"❌ GET {endpoint} error: {e}")
@@ -52,9 +46,9 @@ class InfinityFreeClient:
                 response = await client.post(url, json=data,
                                              headers={"Content-Type": "application/json"})
                 print(f"📡 POST {endpoint} → {response.status_code}")
-                return self._parse(response, endpoint)
+                return await self._parse(response, endpoint)
             except httpx.TimeoutException:
-                print(f"⏱️  Timeout on POST {endpoint}")
+                print(f"⏱️ Timeout on POST {endpoint}")
                 return None
             except Exception as e:
                 print(f"❌ POST {endpoint} error: {e}")
@@ -67,18 +61,18 @@ class InfinityFreeClient:
                 response = await client.put(url, json=data,
                                             headers={"Content-Type": "application/json"})
                 print(f"📡 PUT {endpoint} → {response.status_code}")
-                return self._parse(response, endpoint)
+                return await self._parse(response, endpoint)
             except httpx.TimeoutException:
-                print(f"⏱️  Timeout on PUT {endpoint}")
+                print(f"⏱️ Timeout on PUT {endpoint}")
                 return None
             except Exception as e:
                 print(f"❌ PUT {endpoint} error: {e}")
                 return None
 
-    def _parse(self, response: httpx.Response, endpoint: str):
+    async def _parse(self, response: httpx.Response, endpoint: str):
         """Parse response — strips stray PHP output before the JSON."""
         if response.status_code == 401:
-            raise PermissionError(f"API key rejected by {endpoint}")
+            raise PermissionError(f"API key rejected by {endpoint}. Make sure API key is correct.")
         if response.status_code == 404:
             raise ValueError(f"Unknown endpoint: {endpoint}")
         if response.status_code != 200:
@@ -86,30 +80,34 @@ class InfinityFreeClient:
 
         text = response.text.strip()
         if not text:
-            print(f"⚠️  Empty response from {endpoint}")
+            print(f"⚠️ Empty response from {endpoint}")
             return None
 
         # InfinityFree sometimes prepends PHP notices/warnings before the JSON
         json_start = text.find('{')
-        arr_start  = text.find('[')
+        arr_start = text.find('[')
         if arr_start != -1 and (json_start == -1 or arr_start < json_start):
             json_start = arr_start
         if json_start > 0:
-            print(f"⚠️  Trimming {json_start} non-JSON bytes from {endpoint} response")
+            print(f"⚠️ Trimming {json_start} non-JSON bytes from {endpoint} response")
             text = text[json_start:]
 
         try:
             payload = json.loads(text)
         except json.JSONDecodeError as e:
-            print(f"❌ JSON decode error for {endpoint}: {e}\nRaw: {text[:300]}")
+            print(f"❌ JSON decode error for {endpoint}: {e}")
+            print(f"Raw response: {text[:500]}")
             return None
 
         if payload.get("success"):
             return payload.get("data")
 
         err = payload.get("error", "Unknown API error")
-        print(f"⚠️  API error for {endpoint}: {err}")
-        raise RuntimeError(err)
+        hint = payload.get("hint", "")
+        print(f"⚠️ API error for {endpoint}: {err}")
+        if hint:
+            print(f"   Hint: {hint}")
+        raise RuntimeError(f"{err} {hint}".strip())
 
     # ==================== STUDENTS ====================
 
@@ -240,41 +238,41 @@ class InfinityFreeClient:
         }
 
     async def get_student_dashboard(self, student_id: int) -> Dict:
-        apps    = await self.get_applications_by_student(student_id)
+        apps = await self.get_applications_by_student(student_id)
         tickets = await self.get_hall_tickets_by_student(student_id)
-        docs    = await self.get_student_documents(student_id)
+        docs = await self.get_student_documents(student_id)
         history = await self.get_verification_history(student_id)
         return {
-            "applications":         apps,
-            "hall_tickets":         tickets,
-            "documents":            docs,
+            "applications": apps,
+            "hall_tickets": tickets,
+            "documents": docs,
             "verification_history": history,
             "stats": {
-                "total_applications":    len(apps),
+                "total_applications": len(apps),
                 "verified_applications": len([a for a in apps if a.get("status") == "verified"]),
-                "pending_applications":  len([a for a in apps if a.get("status") == "submitted"]),
-                "total_documents":       len(docs),
-                "verified_documents":    len([d for d in docs if d.get("status") == "verified"]),
+                "pending_applications": len([a for a in apps if a.get("status") == "submitted"]),
+                "total_documents": len(docs),
+                "verified_documents": len([d for d in docs if d.get("status") == "verified"]),
             },
         }
 
     async def get_admin_dashboard(self) -> Dict:
-        stats    = await self.get_dashboard_stats()
+        stats = await self.get_dashboard_stats()
         students = await self.get_all_students(100)
-        apps     = await self.get_all_applications(100)
-        exams    = await self.get_all_exams()
+        apps = await self.get_all_applications(100)
+        exams = await self.get_all_exams()
         by_status = {"draft": 0, "submitted": 0, "verified": 0, "rejected": 0}
         for a in apps:
             s = a.get("status")
             if s in by_status:
                 by_status[s] += 1
         return {
-            "stats":                  stats,
-            "total_students":         len(students),
-            "total_exams":            len(exams),
+            "stats": stats,
+            "total_students": len(students),
+            "total_exams": len(exams),
             "applications_by_status": by_status,
-            "recent_students":        students[:10],
-            "recent_applications":    apps[:10],
+            "recent_students": students[:10],
+            "recent_applications": apps[:10],
         }
 
 
