@@ -1,14 +1,4 @@
-# backend/routes/dashboard.py
-from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
-
-router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
-
-
-@router.get("/", response_class=HTMLResponse)
-async def get_dashboard_html():
-    """Return HTML dashboard page"""
-    return """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -17,507 +7,541 @@ async def get_dashboard_html():
     <style>
         :root {
             --primary: #4f46e5;
-            --primary-dark: #3730a3;
-            --primary-light: #e0e7ff;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;
-            --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
             --gray-500: #6b7280;
             --gray-700: #374151;
             --gray-900: #111827;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
             background: var(--gray-100);
             color: var(--gray-900);
-            min-height: 100vh;
         }
-
-        /* ── HEADER ── */
         .header {
             background: var(--primary);
             color: white;
-            padding: 0 32px;
+            padding: 0 24px;
             height: 60px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 8px rgba(0,0,0,.25);
             position: sticky;
             top: 0;
             z-index: 100;
         }
-        .header-title { font-size: 1.2rem; font-weight: 700; letter-spacing: .3px; }
-        .header-title span { opacity: .6; font-weight: 400; margin-left: 8px; font-size: .9rem; }
-        .header-actions { display: flex; align-items: center; gap: 12px; }
-        .badge-live {
-            background: #22c55e; color: white; font-size: .7rem; font-weight: 700;
-            padding: 3px 8px; border-radius: 20px; letter-spacing: .5px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+        .header-title { font-size: 1.2rem; font-weight: 700; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
         .btn {
-            padding: 7px 16px; border: none; border-radius: 6px;
-            font-size: .85rem; font-weight: 600; cursor: pointer; transition: all .15s;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
         }
         .btn-white { background: white; color: var(--primary); }
-        .btn-white:hover { background: var(--primary-light); }
-        #last-updated { font-size: .78rem; opacity: .75; }
-
-        /* ── LAYOUT ── */
-        .page { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
-
-        /* ── TABS ── */
-        .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid var(--gray-200); }
-        .tab {
-            padding: 10px 20px; border: none; background: none; cursor: pointer;
-            font-size: .9rem; font-weight: 600; color: var(--gray-500);
-            border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s;
+        .badge-live {
+            background: #22c55e;
+            color: white;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 20px;
         }
-        .tab:hover { color: var(--primary); }
-        .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
-
-        /* ── STATS GRID ── */
+        .page { max-width: 1400px; margin: 0 auto; padding: 24px; }
+        
+        /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 16px;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
         }
         .stat-card {
-            background: white; border-radius: 10px; padding: 20px 16px;
-            box-shadow: 0 1px 4px rgba(0,0,0,.08);
-            display: flex; flex-direction: column; gap: 6px;
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .stat-icon { font-size: 1.6rem; line-height: 1; }
-        .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); line-height: 1; }
-        .stat-label { font-size: .78rem; color: var(--gray-500); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
-
-        /* ── SECTION ── */
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); }
+        .stat-label { font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid var(--gray-200);
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--gray-500);
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        /* Tables */
         .section {
-            background: white; border-radius: 10px;
-            box-shadow: 0 1px 4px rgba(0,0,0,.08);
-            margin-bottom: 24px; overflow: hidden;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
         .section-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 16px 20px; border-bottom: 1px solid var(--gray-200);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        .section-title { font-size: 1rem; font-weight: 700; color: var(--gray-900); }
-        .section-count {
-            background: var(--primary-light); color: var(--primary);
-            font-size: .75rem; font-weight: 700; padding: 2px 10px; border-radius: 20px;
-        }
-
-        /* ── TABLE ── */
         .table-wrapper { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-        thead th {
-            background: var(--gray-50); color: var(--gray-500);
-            font-size: .72rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: .5px; padding: 10px 16px; text-align: left;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        th {
+            text-align: left;
+            padding: 10px 16px;
+            background: var(--gray-100);
+            color: var(--gray-500);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+        td {
+            padding: 10px 16px;
             border-bottom: 1px solid var(--gray-200);
         }
-        tbody td { padding: 11px 16px; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); }
-        tbody tr:last-child td { border-bottom: none; }
-        tbody tr:hover { background: var(--gray-50); }
-        .empty-row td { text-align: center; color: var(--gray-500); padding: 32px; font-style: italic; }
-
-        /* ── BADGES ── */
+        tr:last-child td { border-bottom: none; }
+        
         .tag {
-            display: inline-block; padding: 2px 9px; border-radius: 20px;
-            font-size: .72rem; font-weight: 700; text-transform: capitalize;
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
         }
-        .tag-open, .tag-verified, .tag-active { background: #d1fae5; color: #065f46; }
+        .tag-open, .tag-verified { background: #d1fae5; color: #065f46; }
         .tag-closed, .tag-rejected { background: #fee2e2; color: #991b1b; }
-        .tag-submitted, .tag-pending { background: #fef3c7; color: #92400e; }
-        .tag-draft { background: var(--gray-200); color: var(--gray-700); }
-
-        /* ── LOADING / ERROR ── */
+        .tag-submitted { background: #fef3c7; color: #92400e; }
+        
         .loading-overlay {
-            position: fixed; inset: 0; background: rgba(255,255,255,.8);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 200; gap: 16px;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
         }
         .spinner {
-            width: 40px; height: 40px; border: 4px solid var(--primary-light);
-            border-top-color: var(--primary); border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { color: var(--primary); font-weight: 600; }
-
+        
         .error-banner {
-            background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b;
-            padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;
-            font-size: .875rem;
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
-
-        /* ── TAB PANELS ── */
+        
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
-
-        /* ── SEARCH ── */
+        
         .search-bar {
-            padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 6px;
-            font-size: .85rem; width: 220px; outline: none;
+            padding: 6px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            outline: none;
         }
-        .search-bar:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
-
-        code { background: var(--gray-100); padding: 1px 5px; border-radius: 4px; font-size: .85em; }
+        .search-bar:focus { border-color: var(--primary); }
+        
+        code { background: var(--gray-100); padding: 2px 5px; border-radius: 4px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <header class="header">
-    <div class="header-title">
-        📋 Exam Portal
-        <span>Admin Dashboard</span>
-    </div>
+    <div class="header-title">📋 Exam Portal <span>Admin Dashboard</span></div>
     <div class="header-actions">
         <span class="badge-live">● LIVE</span>
-        <span id="last-updated">–</span>
-        <button class="btn btn-white" onclick="loadAll()">🔄 Refresh</button>
+        <span id="last-updated">--:--:--</span>
+        <button class="btn btn-white" onclick="loadAllData()">🔄 Refresh</button>
     </div>
 </header>
 
-<!-- LOADING OVERLAY -->
 <div class="loading-overlay" id="overlay">
     <div class="spinner"></div>
-    <div class="loading-text">Fetching data…</div>
 </div>
 
-<!-- MAIN PAGE -->
 <div class="page">
-
     <div id="error-container"></div>
-
-    <!-- STATS -->
+    
+    <!-- Stats -->
     <div class="stats-grid" id="stats-grid">
-        <div class="stat-card"><div class="stat-icon">👨‍🎓</div><div class="stat-value" id="s-students">–</div><div class="stat-label">Students</div></div>
-        <div class="stat-card"><div class="stat-icon">📝</div><div class="stat-value" id="s-exams">–</div><div class="stat-label">Exams</div></div>
-        <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-value" id="s-apps">–</div><div class="stat-label">Applications</div></div>
-        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="s-verified">–</div><div class="stat-label">Verified</div></div>
-        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value" id="s-pending">–</div><div class="stat-label">Pending</div></div>
-        <div class="stat-card"><div class="stat-icon">🟢</div><div class="stat-value" id="s-open">–</div><div class="stat-label">Open Exams</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-students">-</div><div class="stat-label">Students</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-exams">-</div><div class="stat-label">Exams</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-applications">-</div><div class="stat-label">Applications</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-verified">-</div><div class="stat-label">Verified</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-pending">-</div><div class="stat-label">Pending</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-open">-</div><div class="stat-label">Open Exams</div></div>
     </div>
-
-    <!-- TABS -->
+    
+    <!-- Tabs -->
     <div class="tabs">
-        <button class="tab active" onclick="switchTab('students',this)">👨‍🎓 Students</button>
-        <button class="tab" onclick="switchTab('exams',this)">📝 Exams</button>
-        <button class="tab" onclick="switchTab('applications',this)">📂 Applications</button>
-        <button class="tab" onclick="switchTab('hall_tickets',this)">🎫 Hall Tickets</button>
-        <button class="tab" onclick="switchTab('documents',this)">📄 Documents</button>
-        <button class="tab" onclick="switchTab('schedule',this)">🗓️ Schedule</button>
+        <button class="tab active" onclick="switchTab('students', this)">👨‍🎓 Students</button>
+        <button class="tab" onclick="switchTab('exams', this)">📝 Exams</button>
+        <button class="tab" onclick="switchTab('applications', this)">📂 Applications</button>
+        <button class="tab" onclick="switchTab('hall_tickets', this)">🎫 Hall Tickets</button>
+        <button class="tab" onclick="switchTab('documents', this)">📄 Documents</button>
     </div>
-
-    <!-- STUDENTS TAB -->
-    <div class="tab-panel active" id="tab-students">
+    
+    <!-- Students Tab -->
+    <div id="tab-students" class="tab-panel active">
         <div class="section">
             <div class="section-header">
-                <span class="section-title">Students</span>
-                <div style="display:flex;gap:10px;align-items:center">
-                    <input class="search-bar" id="search-students" placeholder="🔍 Search name / email…" oninput="filterTable('students-tbody','search-students')">
-                    <span class="section-count" id="count-students">0</span>
-                </div>
+                <span>👨‍🎓 Students</span>
+                <div><input class="search-bar" id="search-students" placeholder="Search..." oninput="filterTable('students-table-body', this.value)"></div>
             </div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>#</th><th>Student ID</th><th>Full Name</th><th>Email</th><th>Phone</th></tr></thead>
-                    <tbody id="students-tbody"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody>
+                    <thead><tr><th>#</th><th>Student ID</th><th>Name</th><th>Email</th><th>Phone</th></tr></thead>
+                    <tbody id="students-table-body"><tr><td colspan="5">Loading...</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- EXAMS TAB -->
-    <div class="tab-panel" id="tab-exams">
+    
+    <!-- Exams Tab -->
+    <div id="tab-exams" class="tab-panel">
         <div class="section">
-            <div class="section-header">
-                <span class="section-title">Exams</span>
-                <span class="section-count" id="count-exams">0</span>
-            </div>
+            <div class="section-header"><span>📝 Exams</span></div>
             <div class="table-wrapper">
                 <table>
                     <thead><tr><th>ID</th><th>Exam Code</th><th>Exam Name</th><th>Status</th></tr></thead>
-                    <tbody id="exams-tbody"><tr class="empty-row"><td colspan="4">Loading…</td></tr></tbody>
+                    <tbody id="exams-table-body"><tr><td colspan="4">Loading...</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- APPLICATIONS TAB -->
-    <div class="tab-panel" id="tab-applications">
+    
+    <!-- Applications Tab -->
+    <div id="tab-applications" class="tab-panel">
         <div class="section">
-            <div class="section-header">
-                <span class="section-title">Applications</span>
-                <div style="display:flex;gap:10px;align-items:center">
-                    <input class="search-bar" id="search-apps" placeholder="🔍 Search…" oninput="filterTable('apps-tbody','search-apps')">
-                    <span class="section-count" id="count-apps">0</span>
-                </div>
-            </div>
+            <div class="section-header"><span>📂 Applications</span></div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>ID</th><th>Student ID</th><th>Exam ID</th><th>Status</th><th>Progress</th><th>Created</th></tr></thead>
-                    <tbody id="apps-tbody"><tr class="empty-row"><td colspan="6">Loading…</td></tr></tbody>
+                    <thead><tr><th>ID</th><th>Student ID</th><th>Exam ID</th><th>Status</th><th>Progress</th></tr></thead>
+                    <tbody id="applications-table-body"><tr><td colspan="5">Loading...</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- HALL TICKETS TAB -->
-    <div class="tab-panel" id="tab-hall_tickets">
+    
+    <!-- Hall Tickets Tab -->
+    <div id="tab-hall_tickets" class="tab-panel">
         <div class="section">
-            <div class="section-header">
-                <span class="section-title">Hall Tickets</span>
-                <span class="section-count" id="count-hall_tickets">0</span>
-            </div>
+            <div class="section-header"><span>🎫 Hall Tickets</span></div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>ID</th><th>Hall Ticket No</th><th>Student ID</th><th>Exam ID</th><th>Status</th></tr></thead>
-                    <tbody id="hall_tickets-tbody"><tr class="empty-row"><td colspan="5">Loading…</td></tr></tbody>
+                    <thead><tr><th>ID</th><th>Ticket No</th><th>Student ID</th><th>Exam ID</th><th>Status</th></tr></thead>
+                    <tbody id="halltickets-table-body"><tr><td colspan="5">Loading...</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- DOCUMENTS TAB -->
-    <div class="tab-panel" id="tab-documents">
+    
+    <!-- Documents Tab -->
+    <div id="tab-documents" class="tab-panel">
         <div class="section">
-            <div class="section-header">
-                <span class="section-title">Student Documents</span>
-                <span class="section-count" id="count-documents">0</span>
-            </div>
+            <div class="section-header"><span>📄 Documents</span></div>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>ID</th><th>Student ID</th><th>Document Type</th><th>Status</th><th>Remark</th><th>Verified By</th></tr></thead>
-                    <tbody id="documents-tbody"><tr class="empty-row"><td colspan="6">Loading…</td></tr></tbody>
+                    <thead><tr><th>ID</th><th>Student ID</th><th>Document Type</th><th>Status</th></tr></thead>
+                    <tbody id="documents-table-body"><tr><td colspan="4">Loading...</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- SCHEDULE TAB -->
-    <div class="tab-panel" id="tab-schedule">
-        <div class="section">
-            <div class="section-header">
-                <span class="section-title">Exam Schedule</span>
-                <span class="section-count" id="count-schedule">0</span>
-            </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead><tr><th>ID</th><th>Exam ID</th><th>Date</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
-                    <tbody id="schedule-tbody"><tr class="empty-row"><td colspan="6">Loading…</td></tr></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-</div><!-- /page -->
+</div>
 
 <script>
-// ==================== HELPERS ====================
-const $ = id => document.getElementById(id);
-
-function tag(val) {
-    if (!val) return '<span class="tag tag-draft">–</span>';
-    const cls = {
-        open:'open', closed:'closed', verified:'verified', active:'active',
-        submitted:'submitted', pending:'pending', rejected:'rejected', draft:'draft'
-    }[val.toLowerCase()] || 'draft';
-    return `<span class="tag tag-${cls}">${val}</span>`;
-}
-
-function progressBar(pct) {
-    const p = parseInt(pct) || 0;
-    const color = p >= 100 ? '#059669' : p >= 50 ? '#d97706' : '#4f46e5';
-    return `<div style="display:flex;align-items:center;gap:8px">
-        <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
-            <div style="width:${p}%;height:100%;background:${color};border-radius:3px"></div>
-        </div>
-        <span style="font-size:.75rem;color:#6b7280;white-space:nowrap">${p}%</span>
-    </div>`;
-}
-
-function fmtDate(d) {
-    if (!d) return '–';
-    return new Date(d).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
-}
-
-function emptyRow(cols, msg = 'No data found') {
-    return `<tr class="empty-row"><td colspan="${cols}">${msg}</td></tr>`;
-}
-
-function showError(msg) {
-    $('error-container').innerHTML = `<div class="error-banner">⚠️ ${msg}</div>`;
-    setTimeout(() => $('error-container').innerHTML = '', 6000);
-}
-
-// ==================== TAB SWITCHING ====================
-function switchTab(name, btn) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    $(`tab-${name}`).classList.add('active');
-    btn.classList.add('active');
-}
-
-// ==================== TABLE FILTER ====================
-function filterTable(tbodyId, searchId) {
-    const q = $(searchId).value.toLowerCase();
-    const rows = $(`${tbodyId}`).querySelectorAll('tr:not(.empty-row)');
-    rows.forEach(row => {
-        row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+    // ========== CONFIGURATION ==========
+    const API_BASE_URL = "https://lmsmodern.infinityfree.me/proctored_api.php";
+    const API_KEY = "render_backend_key_7x9k2m";
+    
+    // ========== HELPER FUNCTIONS ==========
+    function buildUrl(endpoint, params = {}) {
+        const urlParams = new URLSearchParams({
+            endpoint: endpoint,
+            api_key: API_KEY,
+            ...params
+        });
+        return `${API_BASE_URL}?${urlParams.toString()}`;
+    }
+    
+    async function apiCall(endpoint, params = {}) {
+        const url = buildUrl(endpoint, params);
+        console.log(`📡 Calling: ${url}`);
+        
+        try {
+            const response = await fetch(url);
+            const text = await response.text();
+            
+            // Clean any PHP warnings/notices before JSON
+            let cleanText = text;
+            const jsonStart = text.indexOf('{');
+            const arrayStart = text.indexOf('[');
+            let startPos = -1;
+            if (arrayStart !== -1 && (jsonStart === -1 || arrayStart < jsonStart)) startPos = arrayStart;
+            else if (jsonStart !== -1) startPos = jsonStart;
+            
+            if (startPos > 0) {
+                console.warn(`⚠️ Trimmed ${startPos} characters of PHP output`);
+                cleanText = text.substring(startPos);
+            }
+            
+            const data = JSON.parse(cleanText);
+            
+            if (!data.success) {
+                throw new Error(data.error || 'API returned error');
+            }
+            
+            return data.data;
+        } catch (error) {
+            console.error(`API Error [${endpoint}]:`, error);
+            throw error;
+        }
+    }
+    
+    function getStatusTag(status) {
+        if (!status) return '<span class="tag">-</span>';
+        const statusClass = {
+            'open': 'tag-open', 'closed': 'tag-closed',
+            'verified': 'tag-verified', 'submitted': 'tag-submitted',
+            'rejected': 'tag-rejected'
+        }[status.toLowerCase()] || 'tag-open';
+        return `<span class="tag ${statusClass}">${status}</span>`;
+    }
+    
+    function filterTable(tableId, searchText) {
+        const tbody = document.getElementById(tableId);
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
+        const search = searchText.toLowerCase();
+        rows.forEach(row => {
+            if (row.cells) {
+                const text = Array.from(row.cells).map(cell => cell.textContent.toLowerCase()).join(' ');
+                row.style.display = text.includes(search) ? '' : 'none';
+            }
+        });
+    }
+    
+    function switchTab(tabName, btnElement) {
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        if (btnElement) btnElement.classList.add('active');
+    }
+    
+    // ========== RENDER FUNCTIONS ==========
+    function renderStudents(students) {
+        const tbody = document.getElementById('students-table-body');
+        if (!students || students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No students found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = students.map((s, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td><code>${escapeHtml(s.student_id || '-')}</code></td>
+                <td>${escapeHtml(s.full_name || s.name || '-')}</td>
+                <td>${escapeHtml(s.email || '-')}</td>
+                <td>${escapeHtml(s.phone || '-')}</td>
+            </tr>
+        `).join('');
+    }
+    
+    function renderExams(exams) {
+        const tbody = document.getElementById('exams-table-body');
+        if (!exams || exams.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4">No exams found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = exams.map(e => `
+            <tr>
+                <td>${e.id}</td>
+                <td><code>${escapeHtml(e.exam_code || '-')}</code></td>
+                <td>${escapeHtml(e.exam_name || '-')}</td>
+                <td>${getStatusTag(e.registration_status || e.status)}</td>
+            </tr>
+        `).join('');
+    }
+    
+    function renderApplications(applications) {
+        const tbody = document.getElementById('applications-table-body');
+        if (!applications || applications.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No applications found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = applications.map(a => `
+            <tr>
+                <td>${a.id}</td>
+                <td>${a.student_id}</td>
+                <td>${a.exam_id}</td>
+                <td>${getStatusTag(a.status)}</td>
+                <td>${a.progress_percentage || 0}%</td>
+            </tr>
+        `).join('');
+    }
+    
+    function renderHallTickets(tickets) {
+        const tbody = document.getElementById('halltickets-table-body');
+        if (!tickets || tickets.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No hall tickets found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = tickets.map(t => `
+            <tr>
+                <td>${t.id}</td>
+                <td><code>${escapeHtml(t.hall_ticket_no || '-')}</code></td>
+                <td>${t.student_id}</td>
+                <td>${t.exam_id}</td>
+                <td>${getStatusTag(t.status)}</td>
+            </tr>
+        `).join('');
+    }
+    
+    function renderDocuments(documents) {
+        const tbody = document.getElementById('documents-table-body');
+        if (!documents || documents.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4">No documents found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = documents.map(d => `
+            <tr>
+                <td>${d.id}</td>
+                <td>${d.student_id}</td>
+                <td><code>${escapeHtml(d.document_type || '-')}</code></td>
+                <td>${getStatusTag(d.status)}</td>
+            </tr>
+        `).join('');
+    }
+    
+    function updateStats(stats, studentsCount, examsCount, appsCount) {
+        document.getElementById('stat-students').textContent = stats?.total_students ?? studentsCount ?? 0;
+        document.getElementById('stat-exams').textContent = stats?.total_exams ?? examsCount ?? 0;
+        document.getElementById('stat-applications').textContent = stats?.total_applications ?? appsCount ?? 0;
+        document.getElementById('stat-verified').textContent = stats?.verified_applications ?? 0;
+        document.getElementById('stat-pending').textContent = stats?.pending_applications ?? 0;
+        document.getElementById('stat-open').textContent = stats?.open_exams ?? 0;
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    function showError(message) {
+        const container = document.getElementById('error-container');
+        container.innerHTML = `<div class="error-banner">❌ ${escapeHtml(message)}</div>`;
+        setTimeout(() => { if (container.innerHTML) container.innerHTML = ''; }, 8000);
+    }
+    
+    // ========== MAIN LOAD FUNCTION ==========
+    async function loadAllData() {
+        const overlay = document.getElementById('overlay');
+        overlay.style.display = 'flex';
+        document.getElementById('error-container').innerHTML = '';
+        
+        try {
+            // Fetch all data in parallel
+            const [students, exams, applications, stats] = await Promise.all([
+                apiCall('students', { limit: 200 }),
+                apiCall('exams'),
+                apiCall('applications', { limit: 200 }),
+                apiCall('dashboard_stats')
+            ]);
+            
+            const studentsArr = Array.isArray(students) ? students : [];
+            const examsArr = Array.isArray(exams) ? exams : [];
+            const appsArr = Array.isArray(applications) ? applications : [];
+            const statsObj = stats && typeof stats === 'object' ? stats : {};
+            
+            // Fetch hall tickets (limit to first 3 exams)
+            let allTickets = [];
+            for (const exam of examsArr.slice(0, 3)) {
+                try {
+                    const tickets = await apiCall('hall_tickets', { exam_id: exam.id });
+                    if (Array.isArray(tickets)) allTickets.push(...tickets);
+                } catch (e) {
+                    console.warn(`Failed to get tickets for exam ${exam.id}`);
+                }
+            }
+            
+            // Fetch documents (limit to first 5 students)
+            let allDocs = [];
+            for (const student of studentsArr.slice(0, 5)) {
+                try {
+                    const docs = await apiCall('documents', { student_id: student.id });
+                    if (Array.isArray(docs)) allDocs.push(...docs);
+                } catch (e) {
+                    console.warn(`Failed to get documents for student ${student.id}`);
+                }
+            }
+            
+            // Render everything
+            renderStudents(studentsArr);
+            renderExams(examsArr);
+            renderApplications(appsArr);
+            renderHallTickets(allTickets);
+            renderDocuments(allDocs);
+            updateStats(statsObj, studentsArr.length, examsArr.length, appsArr.length);
+            
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+            
+        } catch (error) {
+            console.error('Load error:', error);
+            showError(`Failed to load data: ${error.message}`);
+        } finally {
+            overlay.style.display = 'none';
+        }
+    }
+    
+    // Connect search inputs
+    document.getElementById('search-students')?.addEventListener('input', (e) => {
+        filterTable('students-table-body', e.target.value);
     });
-}
-
-// ==================== RENDER FUNCTIONS ====================
-function renderStudents(data) {
-    $('count-students').textContent = data.length;
-    if (!data.length) { $('students-tbody').innerHTML = emptyRow(5); return; }
-    $('students-tbody').innerHTML = data.map((s, i) => `
-        <tr>
-            <td style="color:#9ca3af">${i + 1}</td>
-            <td><code>${s.student_id || '–'}</code></td>
-            <td style="font-weight:600">${s.full_name || s.name || '–'}</td>
-            <td>${s.email || '–'}</td>
-            <td>${s.phone || '–'}</td>
-        </tr>`).join('');
-}
-
-function renderExams(data) {
-    $('count-exams').textContent = data.length;
-    if (!data.length) { $('exams-tbody').innerHTML = emptyRow(4); return; }
-    $('exams-tbody').innerHTML = data.map(e => `
-        <tr>
-            <td style="color:#9ca3af">${e.id}</td>
-            <td><code>${e.exam_code || '–'}</code></td>
-            <td style="font-weight:600">${e.exam_name || '–'}</td>
-            <td>${tag(e.registration_status || e.status || '–')}</td>
-        </tr>`).join('');
-}
-
-function renderApplications(data) {
-    $('count-apps').textContent = data.length;
-    if (!data.length) { $('apps-tbody').innerHTML = emptyRow(6); return; }
-    $('apps-tbody').innerHTML = data.map(a => `
-        <tr>
-            <td style="color:#9ca3af">${a.id}</td>
-            <td>${a.student_id || '–'}</td>
-            <td>${a.exam_id || '–'}</td>
-            <td>${tag(a.status)}</td>
-            <td style="min-width:130px">${progressBar(a.progress_percentage)}</td>
-            <td style="color:#9ca3af;font-size:.8rem">${fmtDate(a.created_at)}</td>
-        </tr>`).join('');
-}
-
-function renderHallTickets(data) {
-    $('count-hall_tickets').textContent = data.length;
-    if (!data.length) { $('hall_tickets-tbody').innerHTML = emptyRow(5); return; }
-    $('hall_tickets-tbody').innerHTML = data.map(t => `
-        <tr>
-            <td style="color:#9ca3af">${t.id}</td>
-            <td><code>${t.hall_ticket_no || '–'}</code></td>
-            <td>${t.student_id || '–'}</td>
-            <td>${t.exam_id || '–'}</td>
-            <td>${tag(t.status)}</td>
-        </tr>`).join('');
-}
-
-function renderDocuments(data) {
-    $('count-documents').textContent = data.length;
-    if (!data.length) { $('documents-tbody').innerHTML = emptyRow(6); return; }
-    $('documents-tbody').innerHTML = data.map(d => `
-        <tr>
-            <td style="color:#9ca3af">${d.id}</td>
-            <td>${d.student_id || '–'}</td>
-            <td><code>${d.document_type || '–'}</code></td>
-            <td>${tag(d.status)}</td>
-            <td style="color:#6b7280;font-size:.8rem">${d.remark || '–'}</td>
-            <td style="color:#6b7280;font-size:.8rem">${d.verified_by || '–'}</td>
-        </tr>`).join('');
-}
-
-function renderSchedule(data) {
-    $('count-schedule').textContent = data.length;
-    if (!data.length) { $('schedule-tbody').innerHTML = emptyRow(6); return; }
-    $('schedule-tbody').innerHTML = data.map(s => `
-        <tr>
-            <td style="color:#9ca3af">${s.id}</td>
-            <td>${s.exam_id || '–'}</td>
-            <td>${s.exam_date || '–'}</td>
-            <td>${s.slot_start || '–'}</td>
-            <td>${s.slot_end || '–'}</td>
-            <td>${tag(s.status)}</td>
-        </tr>`).join('');
-}
-
-// ==================== STATS ====================
-function renderStats(stats, studentCount, examCount, appCount) {
-    $('s-students').textContent  = stats.total_students  ?? studentCount  ?? '–';
-    $('s-exams').textContent     = stats.total_exams     ?? examCount     ?? '–';
-    $('s-apps').textContent      = stats.total_applications ?? appCount   ?? '–';
-    $('s-verified').textContent  = stats.verified_applications ?? '–';
-    $('s-pending').textContent   = stats.pending_applications  ?? '–';
-    $('s-open').textContent      = stats.open_exams             ?? '–';
-}
-
-// ==================== SAFE FETCH ====================
-async function safeFetch(url) {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const json = await r.json();
-        return json.data ?? [];
-    } catch (e) {
-        showError(`Failed to fetch ${url}: ${e.message}`);
-        return [];
-    }
-}
-
-// ==================== LOAD ALL ====================
-async function loadAll() {
-    $('overlay').style.display = 'flex';
-    $('error-container').innerHTML = '';
-
-    try {
-        const [students, exams, applications, hallTickets, documents, schedule, statsRaw] = await Promise.all([
-            safeFetch('/api/students?limit=200'),
-            safeFetch('/api/exams'),
-            safeFetch('/api/applications?limit=200'),
-            safeFetch('/api/hall_tickets/all?limit=200'),
-            safeFetch('/api/documents/all?limit=200'),
-            safeFetch('/api/exam_schedule/all?limit=200'),
-            fetch('/api/dashboard/stats').then(r => r.json()).catch(() => ({ data: {} }))
-        ]);
-
-        const stats = statsRaw.data || {};
-        renderStats(stats, students.length, exams.length, applications.length);
-        renderStudents(students);
-        renderExams(exams);
-        renderApplications(applications);
-        renderHallTickets(hallTickets);
-        renderDocuments(documents);
-        renderSchedule(schedule);
-
-        $('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN');
-    } catch (err) {
-        showError('Unexpected error: ' + err.message);
-    } finally {
-        $('overlay').style.display = 'none';
-    }
-}
-
-// Auto-load + auto-refresh every 60s
-loadAll();
-setInterval(loadAll, 60000);
+    
+    // Load on page load
+    loadAllData();
+    setInterval(loadAllData, 60000); // Auto-refresh every minute
 </script>
 </body>
-</html>"""
+</html>
