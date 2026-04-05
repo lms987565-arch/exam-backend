@@ -15,7 +15,7 @@ class InfinityFreeClient:
     def __init__(self):
         self.base_url = BASE_URL
         self.api_key  = API_KEY
-
+        
     def _build_url(self, endpoint: str, params: Dict = None) -> str:
         """Build full URL with endpoint + api_key + optional extra params."""
         url = f"{self.base_url}?endpoint={endpoint}&api_key={self.api_key}"
@@ -24,14 +24,45 @@ class InfinityFreeClient:
                 if value is not None:
                     url += f"&{key}={value}"
         return url
+    
+    def _get_headers(self) -> Dict:
+        """Return browser-like headers to avoid blocking"""
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "cross-site"
+        }
+
+    # ==================== CORE REQUEST HELPERS ====================
 
     async def _get(self, endpoint: str, params: Dict = None):
         url = self._build_url(endpoint, params)
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        headers = self._get_headers()
+        
+        print(f"📡 GET {endpoint} → {url[:100]}...")
+        
+        async with httpx.AsyncClient(timeout=60.0, verify=False, follow_redirects=True) as client:
             try:
-                response = await client.get(url)
-                print(f"📡 GET {endpoint} → {response.status_code}")
-                return await self._parse(response, endpoint)
+                response = await client.get(url, headers=headers)
+                print(f"📡 Response Status: {response.status_code}")
+                print(f"📡 Response Type: {response.headers.get('content-type', 'unknown')}")
+                
+                # Check if we got HTML instead of JSON (blocked)
+                if response.headers.get('content-type', '').startswith('text/html'):
+                    print(f"⚠️ Received HTML instead of JSON - InfinityFree is blocking this request")
+                    print(f"   Response preview: {response.text[:200]}")
+                    # Try to extract any JSON if it's embedded
+                    return await self._parse_html_response(response, endpoint)
+                
+                return await self._parse_json_response(response, endpoint)
+                
             except httpx.TimeoutException:
                 print(f"⏱️ Timeout on GET {endpoint}")
                 return None
@@ -41,12 +72,14 @@ class InfinityFreeClient:
 
     async def _post(self, endpoint: str, data: Dict):
         url = self._build_url(endpoint)
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        headers = self._get_headers()
+        headers["Content-Type"] = "application/json"
+        
+        async with httpx.AsyncClient(timeout=60.0, verify=False, follow_redirects=True) as client:
             try:
-                response = await client.post(url, json=data,
-                                             headers={"Content-Type": "application/json"})
+                response = await client.post(url, json=data, headers=headers)
                 print(f"📡 POST {endpoint} → {response.status_code}")
-                return await self._parse(response, endpoint)
+                return await self._parse_json_response(response, endpoint)
             except httpx.TimeoutException:
                 print(f"⏱️ Timeout on POST {endpoint}")
                 return None
@@ -56,12 +89,14 @@ class InfinityFreeClient:
 
     async def _put(self, endpoint: str, data: Dict):
         url = self._build_url(endpoint)
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        headers = self._get_headers()
+        headers["Content-Type"] = "application/json"
+        
+        async with httpx.AsyncClient(timeout=60.0, verify=False, follow_redirects=True) as client:
             try:
-                response = await client.put(url, json=data,
-                                            headers={"Content-Type": "application/json"})
+                response = await client.put(url, json=data, headers=headers)
                 print(f"📡 PUT {endpoint} → {response.status_code}")
-                return await self._parse(response, endpoint)
+                return await self._parse_json_response(response, endpoint)
             except httpx.TimeoutException:
                 print(f"⏱️ Timeout on PUT {endpoint}")
                 return None
@@ -69,8 +104,29 @@ class InfinityFreeClient:
                 print(f"❌ PUT {endpoint} error: {e}")
                 return None
 
-    async def _parse(self, response: httpx.Response, endpoint: str):
-        """Parse response — strips stray PHP output before the JSON."""
+    async def _parse_html_response(self, response: httpx.Response, endpoint: str):
+        """Try to extract JSON from HTML response (InfinityFree anti-bot page)"""
+        text = response.text
+        
+        # Look for JSON pattern in the HTML
+        import re
+        json_pattern = r'(\{[^{]*"success"[^}]*\})'
+        matches = re.findall(json_pattern, text)
+        
+        for match in matches:
+            try:
+                payload = json.loads(match)
+                if payload.get("success"):
+                    print(f"✅ Extracted JSON from HTML response for {endpoint}")
+                    return payload.get("data")
+            except:
+                continue
+        
+        # If no JSON found, raise error
+        raise ConnectionError(f"InfinityFree is blocking requests from Render. Response: {text[:300]}")
+
+    async def _parse_json_response(self, response: httpx.Response, endpoint: str):
+        """Parse normal JSON response"""
         if response.status_code == 401:
             raise PermissionError(f"API key rejected by {endpoint}. Make sure API key is correct.")
         if response.status_code == 404:
@@ -83,7 +139,7 @@ class InfinityFreeClient:
             print(f"⚠️ Empty response from {endpoint}")
             return None
 
-        # InfinityFree sometimes prepends PHP notices/warnings before the JSON
+        # Clean any PHP warnings/notices before JSON
         json_start = text.find('{')
         arr_start = text.find('[')
         if arr_start != -1 and (json_start == -1 or arr_start < json_start):
