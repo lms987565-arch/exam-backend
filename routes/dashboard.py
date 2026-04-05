@@ -1,9 +1,20 @@
+# backend/routes/dashboard.py
+from fastapi import APIRouter
+from fastapi.responses import HTMLResponse
+
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+
+@router.get("/", response_class=HTMLResponse)
+async def get_dashboard_html():
+    """Return HTML dashboard page"""
+    return """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exam Portal — Admin Dashboard</title>
+    <title>Exam Portal - Admin Dashboard</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -53,7 +64,6 @@
         }
         .page { max-width: 1400px; margin: 0 auto; padding: 24px; }
         
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -69,7 +79,6 @@
         .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); }
         .stat-label { font-size: 0.75rem; color: var(--gray-500); text-transform: uppercase; }
         
-        /* Tabs */
         .tabs {
             display: flex;
             gap: 4px;
@@ -91,7 +100,6 @@
             border-bottom-color: var(--primary);
         }
         
-        /* Tables */
         .section {
             background: white;
             border-radius: 10px;
@@ -198,7 +206,6 @@
 <div class="page">
     <div id="error-container"></div>
     
-    <!-- Stats -->
     <div class="stats-grid" id="stats-grid">
         <div class="stat-card"><div class="stat-value" id="stat-students">-</div><div class="stat-label">Students</div></div>
         <div class="stat-card"><div class="stat-value" id="stat-exams">-</div><div class="stat-label">Exams</div></div>
@@ -208,7 +215,6 @@
         <div class="stat-card"><div class="stat-value" id="stat-open">-</div><div class="stat-label">Open Exams</div></div>
     </div>
     
-    <!-- Tabs -->
     <div class="tabs">
         <button class="tab active" onclick="switchTab('students', this)">👨‍🎓 Students</button>
         <button class="tab" onclick="switchTab('exams', this)">📝 Exams</button>
@@ -217,7 +223,6 @@
         <button class="tab" onclick="switchTab('documents', this)">📄 Documents</button>
     </div>
     
-    <!-- Students Tab -->
     <div id="tab-students" class="tab-panel active">
         <div class="section">
             <div class="section-header">
@@ -233,7 +238,6 @@
         </div>
     </div>
     
-    <!-- Exams Tab -->
     <div id="tab-exams" class="tab-panel">
         <div class="section">
             <div class="section-header"><span>📝 Exams</span></div>
@@ -246,7 +250,6 @@
         </div>
     </div>
     
-    <!-- Applications Tab -->
     <div id="tab-applications" class="tab-panel">
         <div class="section">
             <div class="section-header"><span>📂 Applications</span></div>
@@ -259,7 +262,6 @@
         </div>
     </div>
     
-    <!-- Hall Tickets Tab -->
     <div id="tab-hall_tickets" class="tab-panel">
         <div class="section">
             <div class="section-header"><span>🎫 Hall Tickets</span></div>
@@ -272,7 +274,6 @@
         </div>
     </div>
     
-    <!-- Documents Tab -->
     <div id="tab-documents" class="tab-panel">
         <div class="section">
             <div class="section-header"><span>📄 Documents</span></div>
@@ -287,50 +288,19 @@
 </div>
 
 <script>
-    // ========== CONFIGURATION ==========
-    const API_BASE_URL = "https://lmsmodern.infinityfree.me/proctored_api.php";
-    const API_KEY = "render_backend_key_7x9k2m";
-    
-    // ========== HELPER FUNCTIONS ==========
-    function buildUrl(endpoint, params = {}) {
-        const urlParams = new URLSearchParams({
-            endpoint: endpoint,
-            api_key: API_KEY,
-            ...params
-        });
-        return `${API_BASE_URL}?${urlParams.toString()}`;
-    }
+    const API_BASE_URL = window.location.origin;
     
     async function apiCall(endpoint, params = {}) {
-        const url = buildUrl(endpoint, params);
-        console.log(`📡 Calling: ${url}`);
+        const url = new URL(`${API_BASE_URL}${endpoint}`);
+        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
         
         try {
             const response = await fetch(url);
-            const text = await response.text();
-            
-            // Clean any PHP warnings/notices before JSON
-            let cleanText = text;
-            const jsonStart = text.indexOf('{');
-            const arrayStart = text.indexOf('[');
-            let startPos = -1;
-            if (arrayStart !== -1 && (jsonStart === -1 || arrayStart < jsonStart)) startPos = arrayStart;
-            else if (jsonStart !== -1) startPos = jsonStart;
-            
-            if (startPos > 0) {
-                console.warn(`⚠️ Trimmed ${startPos} characters of PHP output`);
-                cleanText = text.substring(startPos);
-            }
-            
-            const data = JSON.parse(cleanText);
-            
-            if (!data.success) {
-                throw new Error(data.error || 'API returned error');
-            }
-            
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error || 'API error');
             return data.data;
         } catch (error) {
-            console.error(`API Error [${endpoint}]:`, error);
+            console.error('API Error:', error);
             throw error;
         }
     }
@@ -365,7 +335,6 @@
         if (btnElement) btnElement.classList.add('active');
     }
     
-    // ========== RENDER FUNCTIONS ==========
     function renderStudents(students) {
         const tbody = document.getElementById('students-table-body');
         if (!students || students.length === 0) {
@@ -474,19 +443,17 @@
         setTimeout(() => { if (container.innerHTML) container.innerHTML = ''; }, 8000);
     }
     
-    // ========== MAIN LOAD FUNCTION ==========
     async function loadAllData() {
         const overlay = document.getElementById('overlay');
         overlay.style.display = 'flex';
         document.getElementById('error-container').innerHTML = '';
         
         try {
-            // Fetch all data in parallel
             const [students, exams, applications, stats] = await Promise.all([
-                apiCall('students', { limit: 200 }),
-                apiCall('exams'),
-                apiCall('applications', { limit: 200 }),
-                apiCall('dashboard_stats')
+                apiCall('/api/students', { limit: 200 }),
+                apiCall('/api/exams'),
+                apiCall('/api/applications', { limit: 200 }),
+                apiCall('/api/dashboard/stats')
             ]);
             
             const studentsArr = Array.isArray(students) ? students : [];
@@ -494,29 +461,26 @@
             const appsArr = Array.isArray(applications) ? applications : [];
             const statsObj = stats && typeof stats === 'object' ? stats : {};
             
-            // Fetch hall tickets (limit to first 3 exams)
             let allTickets = [];
             for (const exam of examsArr.slice(0, 3)) {
                 try {
-                    const tickets = await apiCall('hall_tickets', { exam_id: exam.id });
+                    const tickets = await apiCall(`/api/hall_tickets/exam/${exam.id}`);
                     if (Array.isArray(tickets)) allTickets.push(...tickets);
                 } catch (e) {
                     console.warn(`Failed to get tickets for exam ${exam.id}`);
                 }
             }
             
-            // Fetch documents (limit to first 5 students)
             let allDocs = [];
             for (const student of studentsArr.slice(0, 5)) {
                 try {
-                    const docs = await apiCall('documents', { student_id: student.id });
+                    const docs = await apiCall(`/api/documents/student/${student.id}`);
                     if (Array.isArray(docs)) allDocs.push(...docs);
                 } catch (e) {
                     console.warn(`Failed to get documents for student ${student.id}`);
                 }
             }
             
-            // Render everything
             renderStudents(studentsArr);
             renderExams(examsArr);
             renderApplications(appsArr);
@@ -534,14 +498,13 @@
         }
     }
     
-    // Connect search inputs
     document.getElementById('search-students')?.addEventListener('input', (e) => {
         filterTable('students-table-body', e.target.value);
     });
     
-    // Load on page load
     loadAllData();
-    setInterval(loadAllData, 60000); // Auto-refresh every minute
+    setInterval(loadAllData, 60000);
 </script>
 </body>
 </html>
+    """
