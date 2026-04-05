@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
+import httpx
 from dotenv import load_dotenv
 from routes import exam, staff
 from routes.dashboard import router as dashboard_router
@@ -69,6 +70,104 @@ async def health():
             "db": "unreachable",
             "error": str(e)
         }
+
+
+# ==================== DEBUG ENDPOINTS ====================
+
+@app.get("/api/debug/env", tags=["Debug"])
+async def debug_environment():
+    """Check if environment variables are loaded"""
+    return {
+        "INFINITYFREE_API_KEY": os.getenv("INFINITYFREE_API_KEY", "NOT SET"),
+        "INFINITYFREE_BASE_URL": os.getenv("INFINITYFREE_BASE_URL", "NOT SET"),
+        "API_KEY_LENGTH": len(os.getenv("INFINITYFREE_API_KEY", "")),
+    }
+
+
+@app.get("/api/debug/direct", tags=["Debug"])
+async def debug_direct_call():
+    """Test direct HTTP call to InfinityFree API"""
+    api_key = os.getenv("INFINITYFREE_API_KEY", "render_backend_key_7x9k2m")
+    base_url = os.getenv("INFINITYFREE_BASE_URL", "https://lmsmodern.infinityfree.me/proctored_api.php")
+    
+    # Build URL with api_key as query parameter
+    url = f"{base_url}?endpoint=students&api_key={api_key}"
+    
+    results = {
+        "url_called": url,
+        "api_key_used": api_key[:10] + "...",
+        "base_url_used": base_url
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0, verify=True) as client:
+            response = await client.get(url)
+            results["status_code"] = response.status_code
+            results["response_preview"] = response.text[:500] if response.text else "Empty response"
+            
+            # Try to parse JSON
+            try:
+                import json
+                data = json.loads(response.text)
+                results["success"] = data.get("success", False)
+                results["data_count"] = len(data.get("data", [])) if data.get("data") else 0
+            except:
+                results["json_parse_error"] = True
+                
+    except httpx.TimeoutException:
+        results["error"] = "Timeout - InfinityFree took too long to respond"
+    except httpx.ConnectError as e:
+        results["error"] = f"Connection error: {str(e)}"
+    except Exception as e:
+        results["error"] = str(e)
+    
+    return results
+
+
+@app.get("/api/debug/client", tags=["Debug"])
+async def debug_client_call():
+    """Test the infinityfree_client directly"""
+    try:
+        students = await infinityfree_client.get_all_students(limit=5)
+        return {
+            "success": True,
+            "student_count": len(students),
+            "students": students[:3] if students else [],
+            "error": None
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "student_count": 0,
+            "students": [],
+            "error": str(e)
+        }
+
+
+@app.get("/api/debug/ping", tags=["Debug"])
+async def debug_ping():
+    """Test if InfinityFree domain is reachable"""
+    results = {}
+    
+    # Test 1: Basic ping to domain
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get("https://lmsmodern.infinityfree.me")
+            results["domain_reachable"] = True
+            results["domain_status"] = response.status_code
+    except Exception as e:
+        results["domain_reachable"] = False
+        results["domain_error"] = str(e)
+    
+    # Test 2: DNS resolution
+    try:
+        import socket
+        ip = socket.gethostbyname("lmsmodern.infinityfree.me")
+        results["ip_address"] = ip
+    except Exception as e:
+        results["ip_error"] = str(e)
+    
+    return results
 
 
 # ==================== STUDENTS ====================
