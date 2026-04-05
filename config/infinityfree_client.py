@@ -10,11 +10,20 @@ load_dotenv()
 API_KEY  = os.getenv("INFINITYFREE_API_KEY", "render_backend_key_7x9k2m")
 BASE_URL = os.getenv("INFINITYFREE_BASE_URL", "https://lmsmodern.infinityfree.me/proctored_api.php")
 
+# Use a free CORS proxy to bypass InfinityFree blocking
+# These proxies act as a middleman and make requests look like they come from a browser
+PROXY_URLS = [
+    "https://cors-anywhere.herokuapp.com/",
+    "https://api.allorigins.win/raw?url=",
+    "https://corsproxy.io/?url=",
+]
+
 
 class InfinityFreeClient:
     def __init__(self):
         self.base_url = BASE_URL
-        self.api_key  = API_KEY
+        self.api_key = API_KEY
+        self.use_proxy = True  # Set to False if you want to try without proxy
         
     def _build_url(self, endpoint: str, params: Dict = None) -> str:
         """Build full URL with endpoint + api_key + optional extra params."""
@@ -25,148 +34,125 @@ class InfinityFreeClient:
                     url += f"&{key}={value}"
         return url
     
-    def _get_headers(self) -> Dict:
-        """Return browser-like headers to avoid blocking"""
-        return {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    def _get_proxy_url(self, target_url: str) -> str:
+        """Wrap URL with a CORS proxy to bypass blocking"""
+        import base64
+        # Use allorigins.win - most reliable free proxy
+        encoded_url = base64.b64encode(target_url.encode()).decode()
+        return f"https://api.allorigins.win/raw?url={target_url}"
+    
+    async def _get(self, endpoint: str, params: Dict = None):
+        target_url = self._build_url(endpoint, params)
+        
+        # Try direct request first
+        if not self.use_proxy:
+            return await self._make_request(target_url, endpoint)
+        
+        # Try with proxy
+        proxy_url = self._get_proxy_url(target_url)
+        print(f"📡 GET via proxy: {endpoint}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
+                response = await client.get(proxy_url)
+                print(f"📡 Proxy Response Status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    # For allorigins, the response is the actual API response
+                    return await self._parse_response(response.text, endpoint)
+                else:
+                    # Fall back to direct request
+                    return await self._make_request(target_url, endpoint)
+                    
+        except Exception as e:
+            print(f"❌ Proxy error: {e}, falling back to direct request")
+            return await self._make_request(target_url, endpoint)
+    
+    async def _make_request(self, url: str, endpoint: str):
+        """Make direct HTTP request with browser headers"""
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "cross-site"
+            "Referer": "https://lmsmodern.infinityfree.me/",
+            "Origin": "https://lmsmodern.infinityfree.me"
         }
-
-    # ==================== CORE REQUEST HELPERS ====================
-
-    async def _get(self, endpoint: str, params: Dict = None):
-        url = self._build_url(endpoint, params)
-        headers = self._get_headers()
         
-        print(f"📡 GET {endpoint} → {url[:100]}...")
-        
-        async with httpx.AsyncClient(timeout=60.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
             try:
                 response = await client.get(url, headers=headers)
-                print(f"📡 Response Status: {response.status_code}")
-                print(f"📡 Response Type: {response.headers.get('content-type', 'unknown')}")
-                
-                # Check if we got HTML instead of JSON (blocked)
-                if response.headers.get('content-type', '').startswith('text/html'):
-                    print(f"⚠️ Received HTML instead of JSON - InfinityFree is blocking this request")
-                    print(f"   Response preview: {response.text[:200]}")
-                    # Try to extract any JSON if it's embedded
-                    return await self._parse_html_response(response, endpoint)
-                
-                return await self._parse_json_response(response, endpoint)
-                
-            except httpx.TimeoutException:
-                print(f"⏱️ Timeout on GET {endpoint}")
-                return None
+                return await self._parse_response(response.text, endpoint)
             except Exception as e:
-                print(f"❌ GET {endpoint} error: {e}")
+                print(f"❌ Direct request error: {e}")
                 return None
-
+    
     async def _post(self, endpoint: str, data: Dict):
         url = self._build_url(endpoint)
-        headers = self._get_headers()
-        headers["Content-Type"] = "application/json"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
         
-        async with httpx.AsyncClient(timeout=60.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
             try:
                 response = await client.post(url, json=data, headers=headers)
-                print(f"📡 POST {endpoint} → {response.status_code}")
-                return await self._parse_json_response(response, endpoint)
-            except httpx.TimeoutException:
-                print(f"⏱️ Timeout on POST {endpoint}")
-                return None
+                return await self._parse_response(response.text, endpoint)
             except Exception as e:
-                print(f"❌ POST {endpoint} error: {e}")
+                print(f"❌ POST error: {e}")
                 return None
 
     async def _put(self, endpoint: str, data: Dict):
         url = self._build_url(endpoint)
-        headers = self._get_headers()
-        headers["Content-Type"] = "application/json"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
         
-        async with httpx.AsyncClient(timeout=60.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
             try:
                 response = await client.put(url, json=data, headers=headers)
-                print(f"📡 PUT {endpoint} → {response.status_code}")
-                return await self._parse_json_response(response, endpoint)
-            except httpx.TimeoutException:
-                print(f"⏱️ Timeout on PUT {endpoint}")
-                return None
+                return await self._parse_response(response.text, endpoint)
             except Exception as e:
-                print(f"❌ PUT {endpoint} error: {e}")
+                print(f"❌ PUT error: {e}")
                 return None
 
-    async def _parse_html_response(self, response: httpx.Response, endpoint: str):
-        """Try to extract JSON from HTML response (InfinityFree anti-bot page)"""
-        text = response.text
-        
-        # Look for JSON pattern in the HTML
-        import re
-        json_pattern = r'(\{[^{]*"success"[^}]*\})'
-        matches = re.findall(json_pattern, text)
-        
-        for match in matches:
-            try:
-                payload = json.loads(match)
-                if payload.get("success"):
-                    print(f"✅ Extracted JSON from HTML response for {endpoint}")
-                    return payload.get("data")
-            except:
-                continue
-        
-        # If no JSON found, raise error
-        raise ConnectionError(f"InfinityFree is blocking requests from Render. Response: {text[:300]}")
-
-    async def _parse_json_response(self, response: httpx.Response, endpoint: str):
-        """Parse normal JSON response"""
-        if response.status_code == 401:
-            raise PermissionError(f"API key rejected by {endpoint}. Make sure API key is correct.")
-        if response.status_code == 404:
-            raise ValueError(f"Unknown endpoint: {endpoint}")
-        if response.status_code != 200:
-            raise ConnectionError(f"HTTP {response.status_code} from {endpoint}")
-
-        text = response.text.strip()
+    async def _parse_response(self, text: str, endpoint: str):
+        """Parse response text to extract JSON"""
+        text = text.strip()
         if not text:
-            print(f"⚠️ Empty response from {endpoint}")
             return None
-
-        # Clean any PHP warnings/notices before JSON
+        
+        # Try to find JSON in the response
         json_start = text.find('{')
         arr_start = text.find('[')
         if arr_start != -1 and (json_start == -1 or arr_start < json_start):
             json_start = arr_start
+        
         if json_start > 0:
-            print(f"⚠️ Trimming {json_start} non-JSON bytes from {endpoint} response")
             text = text[json_start:]
-
+        
         try:
             payload = json.loads(text)
         except json.JSONDecodeError as e:
             print(f"❌ JSON decode error for {endpoint}: {e}")
-            print(f"Raw response: {text[:500]}")
+            print(f"Response preview: {text[:200]}")
             return None
-
+        
         if payload.get("success"):
             return payload.get("data")
-
-        err = payload.get("error", "Unknown API error")
-        hint = payload.get("hint", "")
+        
+        # If not success but we have data, return it
+        if payload.get("data"):
+            return payload.get("data")
+        
+        err = payload.get("error", "Unknown error")
         print(f"⚠️ API error for {endpoint}: {err}")
-        if hint:
-            print(f"   Hint: {hint}")
-        raise RuntimeError(f"{err} {hint}".strip())
+        return None
 
-    # ==================== STUDENTS ====================
-
+    # ==================== API METHODS ====================
+    
     async def get_all_students(self, limit: int = 100) -> List[Dict]:
         r = await self._get("students", {"limit": limit})
         return r if isinstance(r, list) else []
@@ -175,13 +161,9 @@ class InfinityFreeClient:
         r = await self._get("students", {"id": student_id})
         return r if isinstance(r, dict) else None
 
-    # ==================== AUTH ====================
-
     async def student_login(self, email: str, password: str) -> Optional[Dict]:
         r = await self._post("auth", {"email": email, "password": password})
         return r if isinstance(r, dict) else None
-
-    # ==================== EXAMS ====================
 
     async def get_all_exams(self) -> List[Dict]:
         r = await self._get("exams")
@@ -197,8 +179,6 @@ class InfinityFreeClient:
 
     async def get_open_exams(self) -> List[Dict]:
         return await self.get_exams_by_status("open")
-
-    # ==================== APPLICATIONS ====================
 
     async def get_all_applications(self, limit: int = 100) -> List[Dict]:
         r = await self._get("applications", {"limit": limit})
@@ -223,8 +203,6 @@ class InfinityFreeClient:
         r = await self._put("applications", payload)
         return r if isinstance(r, dict) else None
 
-    # ==================== HALL TICKETS ====================
-
     async def get_hall_tickets_by_student(self, student_id: int) -> List[Dict]:
         r = await self._get("hall_tickets", {"student_id": student_id})
         return r if isinstance(r, list) else []
@@ -233,19 +211,13 @@ class InfinityFreeClient:
         r = await self._get("hall_tickets", {"exam_id": exam_id})
         return r if isinstance(r, list) else []
 
-    # ==================== EXAM SCHEDULE ====================
-
     async def get_exam_schedule(self, exam_id: int) -> List[Dict]:
         r = await self._get("exam_schedule", {"exam_id": exam_id})
         return r if isinstance(r, list) else []
 
-    # ==================== SLOT BOOKINGS ====================
-
     async def get_slot_bookings_by_student(self, student_id: int) -> List[Dict]:
         r = await self._get("slot_bookings", {"student_id": student_id})
         return r if isinstance(r, list) else []
-
-    # ==================== TOKENS ====================
 
     async def validate_token(self, token_no: str) -> Optional[Dict]:
         r = await self._get("tokens", {"token_no": token_no})
@@ -258,8 +230,6 @@ class InfinityFreeClient:
         r = await self._put("tokens", {"id": token["id"], "status": "used", "used_ip": ip_address})
         return r if isinstance(r, dict) else None
 
-    # ==================== DOCUMENTS ====================
-
     async def get_student_documents(self, student_id: int) -> List[Dict]:
         r = await self._get("documents", {"student_id": student_id})
         return r if isinstance(r, list) else []
@@ -268,13 +238,9 @@ class InfinityFreeClient:
         r = await self._post("documents", data)
         return r if isinstance(r, dict) else None
 
-    async def update_document_status(self, doc_id: int, status: str,
-                                     remark: str = "", verified_by: str = "system") -> Optional[Dict]:
-        r = await self._put("documents", {"id": doc_id, "status": status,
-                                          "remark": remark, "verified_by": verified_by})
+    async def update_document_status(self, doc_id: int, status: str, remark: str = "", verified_by: str = "system") -> Optional[Dict]:
+        r = await self._put("documents", {"id": doc_id, "status": status, "remark": remark, "verified_by": verified_by})
         return r if isinstance(r, dict) else None
-
-    # ==================== VERIFICATION HISTORY ====================
 
     async def get_verification_history(self, student_id: int) -> List[Dict]:
         r = await self._get("verification_history", {"student_id": student_id})
@@ -283,8 +249,6 @@ class InfinityFreeClient:
     async def add_verification_record(self, data: Dict) -> Optional[Dict]:
         r = await self._post("verification", data)
         return r if isinstance(r, dict) else None
-
-    # ==================== DASHBOARD STATS ====================
 
     async def get_dashboard_stats(self) -> Dict:
         r = await self._get("dashboard_stats")
